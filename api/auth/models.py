@@ -1,20 +1,23 @@
 # -*- coding: utf-8 -*-
+# Import generic python stuff
 import os
 import random
 from datetime import datetime
-import uuid
-
-import bcrypt
+# Import basic flask stuff
+from flask import current_app, g, jsonify
+# Import database stuff
 from flask.ext.security import SQLAlchemyUserDatastore
-from itsdangerous import (TimedJSONWebSignatureSerializer
-                          as Serializer, BadSignature, SignatureExpired)
+from sqlalchemy_utils import UUIDType
+import uuid
+from api.models import db, Session
+# Import security stuff
+import bcrypt
 import flask_security
 from flask.ext.login import AnonymousUserMixin
-from flask import current_app, g, jsonify
 from flask.ext.httpauth import HTTPBasicAuth
-from sqlalchemy_utils import UUIDType
+from itsdangerous import (TimedJSONWebSignatureSerializer
+                          as Serializer, BadSignature, SignatureExpired)
 
-from api.models import db, Session
 
 __author__ = 'mys'
 
@@ -26,7 +29,7 @@ roles_logins = db.Table('roles_logins',
 class Login(db.Model, flask_security.UserMixin):
     # Define columns
     id = db.Column(UUIDType, primary_key=True)
-    password = db.Column(db.String(255), nullable=False)
+    password = db.Column(db.Binary(60), nullable=False)
     active = db.Column(db.Boolean(), nullable=False, default=True)
     # Define relationships
     roles = db.relationship('Role', secondary=roles_logins,
@@ -40,10 +43,13 @@ class Login(db.Model, flask_security.UserMixin):
         self.roles = kwargs['roles']
 
     def set_password(self, password):
+        """
+        Sets the encrypted password from the given plain-text password
+        :param password: The plain-text password (must be of type str, not unicode!)
+        :type password str
+        """
         self.password = bcrypt.hashpw(
-            self.get_random_pepper() +
-            password +
-            current_app.config['PROJECT_SALT'],
+            self.get_random_pepper() + password + current_app.config['PROJECT_SALT'],
             # Generate user specific salt
             bcrypt.gensalt(6)
         )
@@ -60,11 +66,12 @@ class Login(db.Model, flask_security.UserMixin):
         """
         Verifies a plain-text password with the hashed in the current user.
 
-        :param password: A plain-text password
+        :param password: A plain-text password (must be of type str, not unicode!)
+        :type password str
+
         :return: True if the password was verified, false otherwise
+        :rtype boolean
         """
-        # TODO: Why is the needed? Shouldn't SQLAlchemy take care of this?!
-        self.password = self.password.encode('utf8')
         # Append the project salt to the end of the given user password
         password = password + current_app.config['PROJECT_SALT']
         # Prepare the peppers [1..255]. NB: \x00 is not allowed in bcrypt
@@ -72,7 +79,7 @@ class Login(db.Model, flask_security.UserMixin):
         # Shuffle the peppers to be faster on average
         random.shuffle(PEPPERS)
         for pepper in PEPPERS:
-            # The password is npw: pepper + password + project salt
+            # The password is now: pepper + password + project salt
             pwd = chr(pepper) + password
             if bcrypt.hashpw(pwd, self.password) == self.password:
                 # Bcrypt have now confirmed that the password was correct!
@@ -95,6 +102,7 @@ class Login(db.Model, flask_security.UserMixin):
         s = Serializer(current_app.config['SECRET_KEY'], expires_in=token_time)
         return s.dumps({
             'id': self.get_id_unicode(),
+            # Added to ensure (with high probability) unique tokens
             'r': os.urandom(8).encode('hex')
         })
 
