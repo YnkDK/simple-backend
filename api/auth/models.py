@@ -36,12 +36,17 @@ class Login(db.Model, flask_security.UserMixin):
     def __init__(self, **kwargs):
         super(Login, self).__init__()
         self.id = self.uuid(kwargs['email'])
-        self.password = bcrypt.hashpw(
-            self.get_random_pepper() + kwargs['password'] + current_app.config['PROJECT_SALT'],
-            # Generate user specific salt
-            bcrypt.gensalt(6))
+        self.set_password(kwargs['password'])
         self.roles = kwargs['roles']
 
+    def set_password(self, password):
+        self.password = bcrypt.hashpw(
+            self.get_random_pepper() +
+            password +
+            current_app.config['PROJECT_SALT'],
+            # Generate user specific salt
+            bcrypt.gensalt(6)
+        )
     def get_id_unicode(self):
         """
         Returns the UUID in canonical form
@@ -135,6 +140,7 @@ class Login(db.Model, flask_security.UserMixin):
         os.urandom method
 
         :return: A single byte
+        :rtype str
         """
         while True:
             pepper = os.urandom(1)

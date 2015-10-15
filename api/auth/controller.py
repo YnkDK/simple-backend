@@ -3,6 +3,7 @@
 
 import flask
 import flask_restful
+import flask_restful.reqparse
 from flask import g
 
 from api.auth.constants import MARSHAL_GET, MARSHAL_POST
@@ -47,5 +48,34 @@ class Auth(flask_restful.Resource):
             'token': token.decode('ascii')
         }
 
+    @http_basic_auth.login_required
+    @flask_restful.marshal_with(MARSHAL_GET)
+    @marshal_output
+    def put(self):
+        # TODO: Admin should be able to change other users
+        # TODO: Admin should be able to change roles for other users
+        args = self.put_reqparse().parse_args()
+        g.session.login.set_password(args['new_password'])
+        return {
+            'id': g.login.get_id_unicode(),
+        }
+
+    @staticmethod
+    def put_reqparse():
+        """
+        Prepares the request parser for the put method
+
+        :return: The request parser
+        :rtype flask_restful.reqparse.RequestParser
+        """
+        parser = flask_restful.reqparse.RequestParser()
+        parser.add_argument(
+            name='new_password',
+            type=str,
+            help='The new password to be set',
+            trim=True,
+            required=True
+        )
+        return parser
 
 api.add_resource(Auth, '/auth')

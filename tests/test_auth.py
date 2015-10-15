@@ -41,6 +41,11 @@ class AuthTestCase(unittest.TestCase):
             'Authorization': 'Basic ' + base64.b64encode(email + ':' + password)
         })
 
+    def _put_resource(self, email, password, data):
+        return self.client.put('/api/auth', headers={
+            'Authorization': 'Basic ' + base64.b64encode(email + ':' + password)
+        }, data=data)
+
     def test_happy_login(self):
         with self.app.app_context():
             # Create all users in the current context
@@ -254,6 +259,17 @@ class AuthTestCase(unittest.TestCase):
             response = self._get_resource(token2, '')
             self.assertEqual(200, response.status_code)
 
+    def test_new_password(self):
+        with self.app.app_context():
+            self._create_users()
+            response = self._login('admin', 'Str0ngPwd!')
+            token = json.loads(response.data)['token']
+            response = self._put_resource(token, '', {'new_password': 'hell0!W0rld?'})
+            self.assertEqual(200, response.status_code)
+            response = self._login('admin', 'hell0!W0rld?')
+            self.assertEqual(200, response.status_code)
+            response = self._login('admin', 'Str0ngPwd!')
+            self.assertEqual(401, response.status_code)
 
 
 if __name__ == '__main__':
