@@ -52,6 +52,9 @@ def response_marshal(d):
     Sets the response marshal_output to use the standard marshal_output response in addition with the given parameter
     :param d: The specific parameter
     :type d dict
+
+    :return The updated marshalling keys
+    :rtype dict
     """
     d.update({
         'message': fields.String,
@@ -62,6 +65,13 @@ def response_marshal(d):
 
 
 def marshal_output(fn):
+    """
+    Runs the actual function and uses mashalling rules given to format the output
+    :param fn: Any function
+    :return: The resulting response
+    :rtype dict
+    """
+
     @wraps(fn)
     def decorated_view(*args, **kwargs):
         result = fn(*args, **kwargs)
