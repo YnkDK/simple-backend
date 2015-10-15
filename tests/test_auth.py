@@ -20,15 +20,13 @@ class AuthTestCase(unittest.TestCase):
 
     def _create_users(self):
         # Set up two roles
-        admin_role = user_collection.create_role(name='admin', description='The administrator', token_renew=True)
-        non_admin_role = user_collection.create_role(name='non-admin', description='The non-admin role',
+        non_admin_role = user_collection.find_or_create_role(name='non-admin', description='The non-admin role',
                                                      token_renew=False)
+        admin_role = user_collection.find_role('admin')
         # Set up some users
-        user_collection.create_user(email='admin', password='Str0ngPwd!',
-                                    roles=[admin_role])
-        user_collection.create_user(email='scanty', password='123',
+        user_collection.create_user(login='scanty', password='123',
                                     roles=[non_admin_role])
-        user_collection.create_user(email='multi', password='!"#',
+        user_collection.create_user(login='multi', password='!"#',
                                     roles=[admin_role, non_admin_role])
 
     def _login(self, email, password):

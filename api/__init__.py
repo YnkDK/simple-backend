@@ -47,9 +47,15 @@ def create_app(environment=None):
     @app.before_first_request
     def init_in_context():
         db.create_all()
-        # admin_role = user_collection.create_role(name='admin', description='The administrator')
-        # ynk_user = user_collection.create_user(email='admin', password='SecretPassword', roles=[admin_role])
+        if user_collection.find_role('admin') is None:
+            ###############################
+            ## Bootstrap the application ##
+            ##        CHANGE ASAP        ##
+            ###############################
+            admin_role = user_collection.find_or_create_role(name='admin', description='The administrator',
+                                                             token_renew=True)
+            # Request a put on 'api/auth' with new_password as data, see test for example
+            user_collection.create_user(login='admin', password='Str0ngPwd!',
+                                        roles=[admin_role])
         db.session.commit()
-        # print User.query.all()
-
     return app

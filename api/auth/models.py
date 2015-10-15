@@ -38,7 +38,7 @@ class Login(db.Model, flask_security.UserMixin):
 
     def __init__(self, **kwargs):
         super(Login, self).__init__()
-        self.id = self.uuid(kwargs['email'])
+        self.id = self.uuid(kwargs['login'])
         self.set_password(kwargs['password'])
         self.roles = kwargs['roles']
 
@@ -132,14 +132,14 @@ class Login(db.Model, flask_security.UserMixin):
         return None
 
     @staticmethod
-    def uuid(email):
+    def uuid(login):
         """
-        :param email: The email/username to be logged in
-        :type email basestring
+        :param login: The login to be logged in
+        :type username basestring
         :return: Returns the UUID-5 generated from the e-mail
         :rtype uuid.UUID
         """
-        return uuid.uuid5(uuid.NAMESPACE_OID, email)
+        return uuid.uuid5(uuid.NAMESPACE_OID, login)
 
     @staticmethod
     def get_random_pepper():
