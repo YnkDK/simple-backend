@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 # Import generic python stuff
+from functools import wraps
 import os
 import random
 from datetime import datetime
 # Import basic flask stuff
-from flask import current_app, g, jsonify
+from flask import current_app, g, jsonify, request, make_response, Response
 # Import database stuff
 from flask.ext.security import SQLAlchemyUserDatastore
 from sqlalchemy_utils import UUIDType
@@ -14,7 +15,6 @@ from api.models import db, Session
 import bcrypt
 import flask_security
 from flask.ext.login import AnonymousUserMixin
-from flask.ext.httpauth import HTTPBasicAuth
 from itsdangerous import (TimedJSONWebSignatureSerializer
                           as Serializer, BadSignature, SignatureExpired)
 
@@ -172,35 +172,147 @@ class Anonymous(AnonymousUserMixin):
     roles = []
 
 
-http_basic_auth = HTTPBasicAuth()
+class AuthHandler(object):
+    """
+    An authentication class inspired by flask_httpauth by Miguel Grinberg
+    (https://github.com/miguelgrinberg/Flask-HTTPAuth)
+
+    This class is designed for RESTful Web Services. It is a token-based authentication system
+    initiated by a POST request with username/password. Hereafter all subsequent calls can be
+    verified by the given token, either from a cookie, header, query string or form field.
+
+    Upon successful authentication (both username/password and token) the global variable flask.g
+    is updated with:
+        - g.session: The session ORM
+        - g.login: The login ORM
+    """
+
+    def __init__(self):
+        def default_unauthorized():
+            """
+            Returns a Response with error message and status set to fit
+            the HTTP standard for unauthorized
+
+            :return: An instance of Response with proper fields
+            :rtype flask.Response
+            """
+            return jsonify({
+                'message': 'Unauthorized',
+                'status': 401
+            })
+
+        self.error_handler(default_unauthorized)
+
+    def error_handler(self, f):
+        """
+        The function return either:
+            - response_class: An instance of flask.response_class
+            - str: a response object is created with the string as body
+            - unicode: a response object is created with the string encoded to utf-8 as body
+            - a WSGI function: the function is called as WSGI application and buffered as response object
+            - tuple: A tuple in the form (response, status, headers) where response is any of the types
+                     defined here, status is a string or an integer and headers is a list of a dictionary
+                     with header values.
+        :param f: A function returning one of the above
+        :return: The decorated function, i.e. a response_class with status_code 401
+        """
+
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            res = f(*args, **kwargs)
+            if not isinstance(res, Response):
+                try:
+                    res = make_response(res)
+                except Exception:
+                    res = make_response('unauthorized')
+            res.status_code = 401
+            return res
+
+        self.auth_error_callback = decorated
+        return decorated
+
+    def username_password_required(self, f):
+        """
+        Validates the username/password given from either
+            - POST/PUT form data
+            - HTTP Basic Auth
+        If the username/password combination was valid and the login is active,
+        the session is updated along with flask.g.login and flask.g.session
+        Otherwise the error_handler is issued
+
+        :param f: A POST HTTP method
+        :return: Either the original function or the error_handler
+        """
+
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            form = request.form
+            if request.method == 'POST' and 'username' in form and 'password' in form:
+                username = str(form['username'])
+                password = str(form['password'])
+            else:
+                return self.auth_error_callback()
+            # Get the user from data storage
+            user = Login.query.filter_by(id=uuid.uuid5(uuid.NAMESPACE_OID, username)).first()
+            if not user or not user.verify_password(password) or not user.active:
+                # Either the user was not found, the password was incorrect or the user is inactive
+                return self.auth_error_callback()
+            # Success!
+            g.login = user
+            # Generate a token
+            token = g.login.generate_auth_token()
+            # Update or start the session
+            session = Session.query.filter_by(login_id=g.login.id).first()
+            if not session:
+                session = Session(token=token, login_id=g.login.id)
+                db.session.add(session)
+            else:
+                session.clear(token)
+            g.session = session
+            # Everything is now ready to be processed
+            return f(*args, **kwargs)
+
+        return decorated
+
+    def token_required(self, f):
+        """
+        Fetches the token from either:
+            - The header on key X-Auth-Token
+            - The cookie on key: token
+            - Query string/form data on key: token
+        Then uses the Login-model to verify the auth token
+        If the token was valid and the login is active, the session is updated
+        along with flask.g.login and flask.g.session
+        Otherwise the error_handler is issued
+        :param f: Any GET, PUT, POST or DELETE HTTP method
+        :return: Either the original function or the error_handler
+        """
+
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if 'X-Auth-Token' in request.headers:
+                token = request.headers['X-Auth-Token']
+            elif 'token' in request.cookies:
+                token = request.cookies['token']
+            elif 'token' in request.values:
+                token = request.values['token']
+            else:
+                return self.auth_error_callback()
+
+            session = Login.verify_auth_token(token)
+            if session and session.login.active:
+                session.last_verified = datetime.utcnow()
+                if any(role.token_renew for role in session.login.roles):
+                    session.token = session.login.generate_auth_token()
+                # Set the globals to be used in f
+                g.login = session.login
+                g.session = session
+                # Everything went fine, return the original function
+                return f(*args, **kwargs)
+            # The session was not verified or the login is inactive
+            return self.auth_error_callback()
+
+        return decorated
 
 
-@http_basic_auth.error_handler
-def unauthorized():
-    # do stuff
-    json = jsonify({
-        'message': 'Unauthorized',
-        'status': 401
-    })
-    json.status_code = 401
-    return json
-
-
-@http_basic_auth.verify_password
-def verify_password(email_or_token, password):
-    # first try to authenticate by token
-    session = Login.verify_auth_token(email_or_token)
-    if session and session.login.active:
-        session.last_verified = datetime.utcnow()
-        if any(role.token_renew for role in session.login.roles):
-            session.token = session.login.generate_auth_token()
-        db.session.commit()
-        g.login = session.login
-        g.session = session
-        return True
-    # try to authenticate with username/password
-    user = Login.query.filter_by(id=uuid.uuid5(uuid.NAMESPACE_OID, email_or_token)).first()
-    if not user or not user.verify_password(password) or not user.active:
-        return False
-    g.login = user
-    return True
+auth_handler = AuthHandler()

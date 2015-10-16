@@ -7,9 +7,9 @@ import flask_restful.reqparse
 from flask import g
 
 from api.auth.constants import MARSHAL_GET, MARSHAL_POST
+from api.auth.models import auth_handler
 from api.models import db, Session
-from api.auth.models import http_basic_auth
-from util import roles_accepted, marshal_output
+from util import roles_accepted, tokenify_output
 
 __author__ = 'mys'
 
@@ -18,17 +18,18 @@ api = flask_restful.Api(bp)
 
 
 class Auth(flask_restful.Resource):
-    @http_basic_auth.login_required  # First ensure that the user is logged in
+    @auth_handler.token_required  # First ensure that the user is logged in
     @roles_accepted('admin')  # Then check that the user have a correct role
     @flask_restful.marshal_with(MARSHAL_GET)  # Then enforce the marshalling
-    @marshal_output  # Lastly,set the basic marshals, i.e. message, status and token
+    @tokenify_output  # Lastly,set the basic marshals, i.e. message, status and token
     def get(self):
         return {
             'id': g.login.get_id_unicode(),
         }
 
-    @http_basic_auth.login_required
+    @auth_handler.username_password_required
     @flask_restful.marshal_with(MARSHAL_POST)
+    @tokenify_output
     def post(self):
         # Get the token
         token = g.login.generate_auth_token()
@@ -48,9 +49,9 @@ class Auth(flask_restful.Resource):
             'token': token.decode('ascii')
         }
 
-    @http_basic_auth.login_required
+    @auth_handler.token_required
     @flask_restful.marshal_with(MARSHAL_GET)
-    @marshal_output
+    @tokenify_output
     def put(self):
         # TODO: Admin should be able to change other users
         # TODO: Admin should be able to change roles for other users

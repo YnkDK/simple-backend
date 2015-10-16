@@ -47,9 +47,9 @@ def roles_accepted(*roles):
     return wrapper
 
 
-def response_marshal(d):
+def tokenify_marshal(d):
     """
-    Sets the response marshal_output to use the standard marshal_output response in addition with the given parameter
+    Sets the response tokenify_output to use the standard tokenify_output response in addition with the given parameter
     :param d: The specific parameter
     :type d dict
 
@@ -64,9 +64,9 @@ def response_marshal(d):
     return d
 
 
-def marshal_output(fn):
+def tokenify_output(fn):
     """
-    Runs the actual function and uses mashalling rules given to format the output
+    Runs the actual function and uses marshalling rules given to format the output
     :param fn: Any function
     :return: The resulting response
     :rtype dict
@@ -75,7 +75,7 @@ def marshal_output(fn):
     @wraps(fn)
     def decorated_view(*args, **kwargs):
         result = fn(*args, **kwargs)
-        if not 'status' in result or result['stats'] < 100:
+        if not 'status' in result or result['status'] < 100:
             result['status'] = 200
         if not 'message' in result or result['message'] is None:
             if result['status'] == 200:

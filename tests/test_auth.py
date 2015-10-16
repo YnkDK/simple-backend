@@ -1,6 +1,5 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-import base64
 import unittest
 import json
 
@@ -30,19 +29,18 @@ class AuthTestCase(unittest.TestCase):
                                     roles=[admin_role, non_admin_role])
 
     def _login(self, email, password):
-        return self.client.post('/api/auth', headers={
-            'Authorization': 'Basic ' + base64.b64encode(email + ':' + password)
+        return self.client.post('/api/auth', data={
+            'username': email,
+            'password': password
         })
 
     def _get_resource(self, email, password):
-        return self.client.get('/api/auth', headers={
-            'Authorization': 'Basic ' + base64.b64encode(email + ':' + password)
+        return self.client.get('/api/auth', data={
+            'token': email
         })
 
-    def _put_resource(self, email, password, data):
-        return self.client.put('/api/auth', headers={
-            'Authorization': 'Basic ' + base64.b64encode(email + ':' + password)
-        }, data=data)
+    def _put_resource(self, data):
+        return self.client.put('/api/auth', data=data)
 
     def test_happy_login(self):
         with self.app.app_context():
@@ -196,18 +194,12 @@ class AuthTestCase(unittest.TestCase):
             response = self._get_resource(data['token'], '')
             self.assertEqual(401, response.status_code)
             """ Multi login - access excepted """
-            response = self._get_resource('multi', '!"#')
-            # First try to access with credentials
-            self.assertEqual(200, response.status_code)
             # Then try to access with generated token
             response = self._login('multi', '!"#')
             data = json.loads(response.data)
             response = self._get_resource(data['token'], '')
             self.assertEqual(200, response.status_code)
             """ Admin login - access excepted """
-            response = self._get_resource('admin', 'Str0ngPwd!')
-            # First try to access with credentials
-            self.assertEqual(200, response.status_code)
             # Then try to access with generated token
             response = self._login('admin', 'Str0ngPwd!')
             data = json.loads(response.data)
@@ -262,7 +254,7 @@ class AuthTestCase(unittest.TestCase):
             self._create_users()
             response = self._login('admin', 'Str0ngPwd!')
             token = json.loads(response.data)['token']
-            response = self._put_resource(token, '', {'new_password': 'hell0!W0rld?'})
+            response = self._put_resource({'new_password': 'hell0!W0rld?', 'token': token})
             self.assertEqual(200, response.status_code)
             response = self._login('admin', 'hell0!W0rld?')
             self.assertEqual(200, response.status_code)
