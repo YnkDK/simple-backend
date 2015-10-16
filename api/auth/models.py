@@ -20,6 +20,7 @@ from itsdangerous import (TimedJSONWebSignatureSerializer
 
 
 __author__ = 'mys'
+__all__ = ['roles_logins', 'Login', 'Role', 'user_collection', 'auth_handler']
 
 roles_logins = db.Table('roles_logins',
                         db.Column('user_id', UUIDType, db.ForeignKey('login.id')),

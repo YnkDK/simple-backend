@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
-from api.util import tokenify_marshal
-
 __author__ = 'mys'
+
 from flask.ext.restful import fields
 
-PEPPERS = [chr(i) for i in xrange(256)]
+from api.util import tokenify_marshal
+
+
 # Define the marshalling transformation for the GET method
 MARSHAL_GET = tokenify_marshal({
     'id': fields.String

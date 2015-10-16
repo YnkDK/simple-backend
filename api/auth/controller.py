@@ -4,12 +4,11 @@
 import flask
 import flask_restful
 import flask_restful.reqparse
-from flask import g
 
 from api.auth.constants import MARSHAL_GET, MARSHAL_POST
 from api.auth.models import auth_handler
 from api.models import db, Session
-from util import roles_accepted, tokenify_output
+from api.util import roles_accepted, tokenify_output
 
 __author__ = 'mys'
 
@@ -24,7 +23,7 @@ class Auth(flask_restful.Resource):
     @tokenify_output  # Lastly,set the basic marshals, i.e. message, status and token
     def get(self):
         return {
-            'id': g.login.get_id_unicode(),
+            'id': flask.g.login.get_id_unicode(),
         }
 
     @auth_handler.username_password_required
@@ -32,12 +31,12 @@ class Auth(flask_restful.Resource):
     @tokenify_output
     def post(self):
         # Get the token
-        token = g.login.generate_auth_token()
+        token = flask.g.login.generate_auth_token()
 
         # Update the session
-        session = Session.query.filter_by(login_id=g.login.id).first()
+        session = Session.query.filter_by(login_id=flask.g.login.id).first()
         if not session:
-            session = Session(token=token, login_id=g.login.id)
+            session = Session(token=token, login_id=flask.g.login.id)
             db.session.add(session)
         else:
             session.clear(token)
@@ -56,9 +55,9 @@ class Auth(flask_restful.Resource):
         # TODO: Admin should be able to change other users
         # TODO: Admin should be able to change roles for other users
         args = self.put_reqparse().parse_args()
-        g.session.login.set_password(args['new_password'])
+        flask.g.session.login.set_password(args['new_password'])
         return {
-            'id': g.login.get_id_unicode(),
+            'id': flask.g.login.get_id_unicode(),
         }
 
     @staticmethod

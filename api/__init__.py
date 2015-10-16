@@ -18,10 +18,8 @@ def create_app(environment=None):
     if not environment:
         environment = os.environ.get('FLASK_CONFIG', 'development')
     app.config.from_object('api.config.{}'.format(environment.capitalize()))
-    app.config.from_pyfile(
-        'config_{}.py'.format(environment.lower()),
-        silent=True
-    )
+    if not environment.lower() == 'production':
+        print 'Using configuration for', environment.capitalize()
 
     # Import all models
     from api.auth.models import Anonymous, user_collection
