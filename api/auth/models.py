@@ -24,7 +24,7 @@ __all__ = ['roles_logins', 'Login', 'Role', 'user_collection', 'auth_handler']
 
 roles_logins = db.Table('roles_logins',
                         db.Column('user_id', UUIDType, db.ForeignKey('login.id')),
-                        db.Column('role_id', db.Integer(), db.ForeignKey('role.id')))
+                        db.Column('role_id', UUIDType, db.ForeignKey('role.id')))
 
 
 class Login(db.Model, flask_security.UserMixin):
@@ -56,6 +56,8 @@ class Login(db.Model, flask_security.UserMixin):
         self.id = self.uuid(kwargs['login'])
         self.set_password(kwargs['password'])
         self.roles = kwargs['roles']
+        if 'active' in kwargs:
+            self.active = kwargs['active']
 
     def set_password(self, password):
         """
@@ -68,6 +70,7 @@ class Login(db.Model, flask_security.UserMixin):
             # Generate user specific salt
             bcrypt.gensalt(6)
         )
+
     def get_id_unicode(self):
         """
         Returns the UUID in canonical form
@@ -90,10 +93,10 @@ class Login(db.Model, flask_security.UserMixin):
         # Append the project salt to the end of the given user password
         password = password + current_app.config['PROJECT_SALT']
         # Prepare the peppers [1..255]. NB: \x00 is not allowed in bcrypt
-        PEPPERS = range(1, 256)
+        peppers = range(1, 256)
         # Shuffle the peppers to be faster on average
-        random.shuffle(PEPPERS)
-        for pepper in PEPPERS:
+        random.shuffle(peppers)
+        for pepper in peppers:
             # The password is now: pepper + password + project salt
             pwd = chr(pepper) + password
             if bcrypt.hashpw(pwd, self.password) == self.password:
@@ -150,7 +153,7 @@ class Login(db.Model, flask_security.UserMixin):
     def uuid(login):
         """
         :param login: The login to be logged in
-        :type username basestring
+        :type login basestring
         :return: Returns the UUID-5 generated from the e-mail
         :rtype uuid.UUID
         """
@@ -172,12 +175,25 @@ class Login(db.Model, flask_security.UserMixin):
 
 
 class Role(db.Model, flask_security.RoleMixin):
-    id = db.Column(db.Integer(), primary_key=True)
+    id = db.Column(UUIDType, primary_key=True)
     name = db.Column(db.String(80), nullable=False, unique=True)
     description = db.Column(db.String(255))
     token_time = db.Column(db.Integer, nullable=False, default=600)
     token_renew = db.Column(db.Boolean, nullable=False, default=False)
 
+    def __init__(self, name, description, token_time=None, token_renew=None):
+        super(Role, self).__init__()
+        self.id = self.uuid(name)
+        self.name = name
+        self.description = description
+        if token_time:
+            self.token_time = token_time
+        if token_renew:
+            self.token_renew = token_renew
+
+    @staticmethod
+    def uuid(name):
+        return uuid.uuid5(uuid.NAMESPACE_OID, name)
 
 user_collection = SQLAlchemyUserDatastore(db, Login, Role)
 

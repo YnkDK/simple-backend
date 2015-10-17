@@ -27,12 +27,9 @@ def create_app(environment=None):
     login_manager.anonymous_user = Anonymous
 
     # Init app with the extensions
-
-
     security.init_app(app, user_collection)
     login_manager.init_app(app)
     db.init_app(app)
-
 
     # Lastly: Register the blueprints
     app.register_blueprint(
