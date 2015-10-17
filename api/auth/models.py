@@ -28,6 +28,20 @@ roles_logins = db.Table('roles_logins',
 
 
 class Login(db.Model, flask_security.UserMixin):
+    """
+    Define the login/user model.
+
+    Please note that the username is not stored in the database directly.
+    This have (at least) the following consequences/advantages:
+        1. The table reserves less space in the database
+        2. The row of a specific login can be access on the primary key with Login.uuid(login)
+        3. All usernames cannot be listed
+    The last consequence might be unwanted, e.g. the admin cannot tell a user it's login without
+    knowing the users login. A solution is to have a table (User) which stores everything else
+    about a user, e.g. username, full name, email, phone number, address etc. with a reference
+    to the login table.
+    """
+
     # Define columns
     id = db.Column(UUIDType, primary_key=True)
     password = db.Column(db.Binary(60), nullable=False)
@@ -247,10 +261,17 @@ class AuthHandler(object):
 
         @wraps(f)
         def decorated(*args, **kwargs):
-            form = request.form
-            if request.method == 'POST' and 'username' in form and 'password' in form:
-                username = str(form['username'])
-                password = str(form['password'])
+            if request.method == 'POST':
+                form = request.form
+                auth = request.authorization
+                if 'username' in form and 'password' in form:
+                    username = str(form['username'])
+                    password = str(form['password'])
+                elif auth:
+                    username = str(auth.username)
+                    password = str(auth.password)
+                else:
+                    return self.auth_error_callback()
             else:
                 return self.auth_error_callback()
             # Get the user from data storage
@@ -291,15 +312,14 @@ class AuthHandler(object):
 
         @wraps(f)
         def decorated(*args, **kwargs):
-            if 'X-Auth-Token' in request.headers:
+            if 'token' in request.values:
+                token = request.values['token']
+            elif 'X-Auth-Token' in request.headers:
                 token = request.headers['X-Auth-Token']
             elif 'token' in request.cookies:
                 token = request.cookies['token']
-            elif 'token' in request.values:
-                token = request.values['token']
             else:
                 return self.auth_error_callback()
-
             session = Login.verify_auth_token(token)
             if session and session.login.active:
                 session.last_verified = datetime.utcnow()

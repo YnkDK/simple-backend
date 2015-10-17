@@ -19,16 +19,14 @@ api = flask_restful.Api(bp)
 class Auth(flask_restful.Resource):
     @auth_handler.token_required  # First ensure that the user is logged in
     @roles_accepted('admin')  # Then check that the user have a correct role
-    @flask_restful.marshal_with(MARSHAL_GET)  # Then enforce the marshalling
-    @tokenify_output  # Lastly,set the basic marshals, i.e. message, status and token
+    @tokenify_output(MARSHAL_GET)  # Lastly,set the basic marshals, i.e. message, status and token
     def get(self):
         return {
             'id': flask.g.login.get_id_unicode(),
         }
 
     @auth_handler.username_password_required
-    @flask_restful.marshal_with(MARSHAL_POST)
-    @tokenify_output
+    @tokenify_output(MARSHAL_POST)
     def post(self):
         # Get the token
         token = flask.g.login.generate_auth_token()
@@ -45,12 +43,11 @@ class Auth(flask_restful.Resource):
         return {
             'status': 200,
             'message': 'OK',
-            'token': token.decode('ascii')
+            'token': token
         }
 
     @auth_handler.token_required
-    @flask_restful.marshal_with(MARSHAL_GET)
-    @tokenify_output
+    @tokenify_output(MARSHAL_GET)
     def put(self):
         # TODO: Admin should be able to change other users
         # TODO: Admin should be able to change roles for other users

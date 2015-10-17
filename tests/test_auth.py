@@ -34,10 +34,8 @@ class AuthTestCase(unittest.TestCase):
             'password': password
         })
 
-    def _get_resource(self, email, password):
-        return self.client.get('/api/auth', data={
-            'token': email
-        })
+    def _get_resource(self, token):
+        return self.client.get('/api/auth?token=' + token)
 
     def _put_resource(self, data):
         return self.client.put('/api/auth', data=data)
@@ -152,7 +150,8 @@ class AuthTestCase(unittest.TestCase):
             response = self._login('admin', 'Str0ngPwd!')
             data = json.loads(response.data)
             token1 = data['token']
-            response = self._get_resource(token1, '')
+
+            response = self._get_resource(token1)
             # Check that the status code is present
             self.assertEqual(200, response.status_code)
             # Parse the response
@@ -174,36 +173,33 @@ class AuthTestCase(unittest.TestCase):
             self.assertNotEqual(token1, data['token'])
 
             # Check that the old token is invalid
-            response = self._get_resource(token1, '')
+            response = self._get_resource(token1)
             self.assertEqual(401, response.status_code)
 
             # Check the the new token is valid
-            response = self._get_resource(data['token'], '')
+            response = self._get_resource(data['token'])
             self.assertEqual(200, response.status_code)
 
     def test_role_access(self):
         with self.app.app_context():
             self._create_users()
             """ Scanty login - no access excepted """
-            # First try to access with credentials
-            response = self._get_resource('scanty', '123')
-            self.assertEqual(401, response.status_code)
             # Then try to access with generated token
             response = self._login('scanty', '123')
             data = json.loads(response.data)
-            response = self._get_resource(data['token'], '')
+            response = self._get_resource(data['token'])
             self.assertEqual(401, response.status_code)
             """ Multi login - access excepted """
             # Then try to access with generated token
             response = self._login('multi', '!"#')
             data = json.loads(response.data)
-            response = self._get_resource(data['token'], '')
+            response = self._get_resource(data['token'])
             self.assertEqual(200, response.status_code)
             """ Admin login - access excepted """
             # Then try to access with generated token
             response = self._login('admin', 'Str0ngPwd!')
             data = json.loads(response.data)
-            response = self._get_resource(data['token'], '')
+            response = self._get_resource(data['token'])
             self.assertEqual(200, response.status_code)
 
     def test_token_renew(self):
@@ -213,24 +209,24 @@ class AuthTestCase(unittest.TestCase):
             response = self._login('multi', '!"#')
             data = json.loads(response.data)
             token1 = data['token']
-            response = self._get_resource(token1, '')
+            response = self._get_resource(token1)
             data = json.loads(response.data)
             token2 = data['token']
-            response = self._get_resource(token1, '')
+            response = self._get_resource(token1)
             self.assertEqual(401, response.status_code)
-            response = self._get_resource(token2, '')
+            response = self._get_resource(token2)
             self.assertEqual(200, response.status_code)
 
             """ Admin login - renewal excepted """
             response = self._login('admin', 'Str0ngPwd!')
             data = json.loads(response.data)
             token1 = data['token']
-            response = self._get_resource(token1, '')
+            response = self._get_resource(token1)
             data = json.loads(response.data)
             token2 = data['token']
-            response = self._get_resource(token1, '')
+            response = self._get_resource(token1)
             self.assertEqual(401, response.status_code)
-            response = self._get_resource(token2, '')
+            response = self._get_resource(token2)
             self.assertEqual(200, response.status_code)
 
     def test_invalid_session(self):
@@ -243,10 +239,10 @@ class AuthTestCase(unittest.TestCase):
             # At this point token1 should be invalid and token2 valid
             self.assertNotEqual(token1, token2)
             # See that the first is invalid
-            response = self._get_resource(token1, '')
+            response = self._get_resource(token1)
             self.assertEqual(401, response.status_code)
             # See that the second is valid
-            response = self._get_resource(token2, '')
+            response = self._get_resource(token2)
             self.assertEqual(200, response.status_code)
 
     def test_new_password(self):

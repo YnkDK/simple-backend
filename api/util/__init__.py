@@ -2,7 +2,7 @@
 from functools import wraps
 
 from flask import jsonify, g
-from flask.ext.restful import fields
+from flask.ext.restful import fields, marshal
 
 from api.models import db
 
@@ -64,30 +64,33 @@ def tokenify_marshal(d):
     return d
 
 
-def tokenify_output(fn):
-    """
-    Runs the actual function and uses marshalling rules given to format the output
-    :param fn: Any function
-    :return: The resulting response
-    :rtype dict
-    """
+class tokenify_output(object):
+    def __init__(self, marshalling):
+        self.marshalling = marshalling
 
-    @wraps(fn)
-    def decorated_view(*args, **kwargs):
-        result = fn(*args, **kwargs)
-        if not 'status' in result or result['status'] < 100:
-            result['status'] = 200
-        if not 'message' in result or result['message'] is None:
-            if result['status'] == 200:
-                result['message'] = 'OK'
-            else:
-                result['message'] = 'Error'
-        if hasattr(g, 'session'):
-            # Override token if session is present
-            result['token'] = g.session.token
+    def __call__(self, fn):
+        @wraps(fn)
+        def decorated_view(*args, **kwargs):
+            result = fn(*args, **kwargs)
+            if not 'status' in result or result['status'] < 100:
+                result['status'] = 200
+            if not 'message' in result or result['message'] is None:
+                if result['status'] == 200:
+                    result['message'] = 'OK'
+                else:
+                    result['message'] = 'Error'
+            if hasattr(g, 'session'):
+                # Override token if session is present
+                result['token'] = g.session.token
 
-        # The very last thing to do is to update everything
-        db.session.commit()
-        return result
+            result = marshal(result, self.marshalling)
+            response = jsonify(result)
+            response.status_code = result['status']
+            token_time = min(g.login.roles, key=lambda x: x.token_time).token_time
+            response.set_cookie('token', '', max_age=token_time)
 
-    return decorated_view
+            # The very last thing to do is to update everything
+            db.session.commit()
+            return response
+
+        return decorated_view
