@@ -6,6 +6,8 @@ import json
 from api import create_app
 from api.auth.models import user_collection
 
+__all__ = ['unittest', 'AuthTestCase']
+
 
 class AuthTestCase(unittest.TestCase):
     def setUp(self):
