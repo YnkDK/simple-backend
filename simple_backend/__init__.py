@@ -8,7 +8,8 @@ from flask import Flask
 from flask.ext.restful import fields
 from flask.ext.security import Security
 from flask.ext.login import LoginManager
-from werkzeug.exceptions import NotFound, MethodNotAllowed, InternalServerError
+
+from werkzeug.exceptions import HTTPException
 
 from simple_backend.models import db
 from util import tokenify_output, tokenify_marshal
@@ -32,36 +33,11 @@ def create_error_handlers(app):
             'usage': exception.usage
         }
 
-    @app.errorhandler(NotFound)
-    @app.errorhandler(404)
+    @app.errorhandler(HTTPException)
     @tokenify_output(tokenify_marshal({}))
     def resource_not_found(exception):
         """
         :type exception NotFound
-        """
-        return {
-            'message': exception.description,
-            'status': exception.code
-        }
-
-    @app.errorhandler(MethodNotAllowed)
-    @app.errorhandler(405)
-    @tokenify_output(tokenify_marshal({}))
-    def method_not_allowed(exception):
-        """
-        :type exception MethodNotAllowed
-        """
-        return {
-            'message': exception.description,
-            'status': exception.code
-        }
-
-    @app.errorhandler(InternalServerError)
-    @app.errorhandler(500)
-    @tokenify_output(tokenify_marshal({}))
-    def internal_server_error(exception):
-        """
-        :type exception InternalServerError
         """
         return {
             'message': exception.description,
