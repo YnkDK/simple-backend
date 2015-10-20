@@ -17,6 +17,9 @@ class Config(object):
 
     SECURITY_TRACKABLE = True
 
+    BUNDLE_ERRORS = True
+    TRAP_HTTP_EXCEPTIONS = True
+
 
 class Development(Config):
     DEBUG = True
@@ -27,6 +30,8 @@ class Development(Config):
 class Production(Config):
     DEBUG = False
     TESTING = False
+
+
     # =======================================================
     # = NB: USING URANDOM INVALIDATES ALL CURRENT SESSIONS! =
     # =======================================================

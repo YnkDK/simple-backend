@@ -10,14 +10,13 @@ from flask import current_app, g, jsonify, request, make_response, Response
 from flask.ext.security import SQLAlchemyUserDatastore
 from sqlalchemy_utils import UUIDType
 import uuid
-from api.models import db, Session
+from simple_backend.models import db, Session
 # Import security stuff
 import bcrypt
 import flask_security
 from flask.ext.login import AnonymousUserMixin
 from itsdangerous import (TimedJSONWebSignatureSerializer
                           as Serializer, BadSignature, SignatureExpired)
-
 
 __author__ = 'mys'
 __all__ = ['roles_logins', 'Login', 'Role', 'user_collection', 'auth_handler']
@@ -194,6 +193,7 @@ class Role(db.Model, flask_security.RoleMixin):
     @staticmethod
     def uuid(name):
         return uuid.uuid5(uuid.NAMESPACE_OID, name)
+
 
 user_collection = SQLAlchemyUserDatastore(db, Login, Role)
 

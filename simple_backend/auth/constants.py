@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from flask.ext.restful import fields
 
-from api.util import tokenify_marshal
+from simple_backend.util import tokenify_marshal
 
 __author__ = 'mys'
 

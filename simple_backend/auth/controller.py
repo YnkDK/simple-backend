@@ -5,10 +5,10 @@ import flask
 import flask_restful
 import flask_restful.reqparse
 
-from api.auth.constants import MARSHAL_GET, MARSHAL_POST
-from api.auth.models import auth_handler
-from api.models import db, Session
-from api.util import roles_accepted, tokenify_output
+from simple_backend.auth.constants import MARSHAL_GET, MARSHAL_POST
+from simple_backend.auth.models import auth_handler
+from simple_backend.models import db, Session
+from simple_backend.util import roles_accepted, tokenify_output
 
 __author__ = 'mys'
 
@@ -17,6 +17,9 @@ api = flask_restful.Api(bp)
 
 
 class Auth(flask_restful.Resource):
+    # def dispatch_request(self, *args, **kwargs):
+    #     return super(Auth, self).dispatch_request(*args, **kwargs)
+
     @auth_handler.token_required  # First ensure that the user is logged in
     @roles_accepted('admin')  # Then check that the user have a correct role
     @tokenify_output(MARSHAL_GET)  # Lastly,set the basic marshals, i.e. message, status and token
@@ -74,5 +77,6 @@ class Auth(flask_restful.Resource):
             required=True
         )
         return parser
+
 
 api.add_resource(Auth, '/auth')

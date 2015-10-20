@@ -3,8 +3,9 @@
 import unittest
 import json
 
-from api import create_app
-from api.auth.models import user_collection
+from simple_backend import create_app
+from simple_backend.models import db
+from simple_backend.auth.models import user_collection
 
 __all__ = ['unittest', 'AuthTestCase']
 
@@ -20,10 +21,17 @@ class AuthTestCase(unittest.TestCase):
         self.client = None
 
     def _create_users(self):
+        db.create_all()
+        db.session.commit()
+
         # Set up two roles
         non_admin_role = user_collection.find_or_create_role(name='non-admin', description='The non-admin role',
-                                                     token_renew=False)
-        admin_role = user_collection.find_role('admin')
+                                                             token_renew=False)
+        admin_role = user_collection.find_or_create_role(name='admin', description='The administrator',
+                                                         token_renew=True)
+        # Request a put on 'api/auth' with new_password as data, see test for example
+        user_collection.create_user(login='admin', password='Str0ngPwd!',
+                                    roles=[admin_role])
         # Set up some users
         user_collection.create_user(login='scanty', password='123',
                                     roles=[non_admin_role])

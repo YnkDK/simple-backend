@@ -3,8 +3,9 @@ from functools import wraps
 
 from flask import jsonify, g
 from flask.ext.restful import fields, marshal
+from flask.wrappers import Response
 
-from api.models import db
+from simple_backend.models import db
 
 __author__ = 'mys'
 
@@ -82,12 +83,23 @@ class tokenify_output(object):
             if hasattr(g, 'session'):
                 # Override token if session is present
                 result['token'] = g.session.token
+                token_time = min(g.login.roles, key=lambda x: x.token_time).token_time
+            else:
+                result['token'] = None
+                token_time = None
 
             result = marshal(result, self.marshalling)
             response = jsonify(result)
+            assert isinstance(response, Response)
+            # Set the RESTful headers
             response.status_code = result['status']
-            token_time = min(g.login.roles, key=lambda x: x.token_time).token_time
-            response.set_cookie('token', '', max_age=token_time)
+            response.content_type = 'application/json'
+            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = 0
+            # If we have a token, set the cookie as well
+            if result['token'] is not None:
+                response.set_cookie('token', result['token'], max_age=token_time)
 
             # The very last thing to do is to update everything
             db.session.commit()
