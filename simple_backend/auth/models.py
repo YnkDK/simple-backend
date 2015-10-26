@@ -4,6 +4,7 @@ from functools import wraps
 import os
 import random
 from datetime import datetime
+import time
 # Import basic flask stuff
 from flask import current_app, g, jsonify, request, make_response, Response
 # Import database stuff
@@ -12,7 +13,7 @@ from sqlalchemy_utils import UUIDType
 import uuid
 from simple_backend.models import db, Session
 # Import security stuff
-import bcrypt
+import pbkdf2_ctypes
 import flask_security
 from flask.ext.login import AnonymousUserMixin
 from itsdangerous import (TimedJSONWebSignatureSerializer
@@ -43,7 +44,7 @@ class Login(db.Model, flask_security.UserMixin):
 
     # Define columns
     id = db.Column(UUIDType, primary_key=True)
-    password = db.Column(db.Binary(60), nullable=False)
+    password = db.Column(db.Text(), nullable=False)
     active = db.Column(db.Boolean(), nullable=False, default=True)
     # Define relationships
     roles = db.relationship('Role', secondary=roles_logins,
@@ -64,11 +65,15 @@ class Login(db.Model, flask_security.UserMixin):
         :param password: The plain-text password (must be of type str, not unicode!)
         :type password str
         """
-        self.password = bcrypt.hashpw(
-            self.get_random_pepper() + password + current_app.config['PROJECT_SALT'],
-            # Generate user specific salt
-            bcrypt.gensalt(6)
+        iterations = current_app.config.get('PBKDF2_ITERATIONS', 2000)
+
+        salt = os.urandom(8)
+        digest = pbkdf2_ctypes.pbkdf2_bin(
+            data=os.urandom(1) + password + current_app.config['PROJECT_SALT'],
+            salt=salt,
+            iterations=iterations
         )
+        self.password = salt.encode('hex') + "$" + digest.encode('hex')
 
     def get_id_unicode(self):
         """
@@ -89,16 +94,22 @@ class Login(db.Model, flask_security.UserMixin):
         :return: True if the password was verified, false otherwise
         :rtype boolean
         """
+        from auth.constants import PEPPERS
+        # Get number of iterations
+        iterations = current_app.config.get('PBKDF2_ITERATIONS', 2000)
+        # Get current salt and digest
+        salt, digested_password = self.password.split("$")
+        salt = salt.decode('hex')
+        digested_password = digested_password.decode('hex')
         # Append the project salt to the end of the given user password
         password = password + current_app.config['PROJECT_SALT']
         # Prepare the peppers [1..255]. NB: \x00 is not allowed in bcrypt
-        peppers = range(1, 256)
         # Shuffle the peppers to be faster on average
-        random.shuffle(peppers)
-        for pepper in peppers:
+        random.shuffle(PEPPERS)
+        for pepper in PEPPERS:
             # The password is now: pepper + password + project salt
-            pwd = chr(pepper) + password
-            if bcrypt.hashpw(pwd, self.password) == self.password:
+            pwd = pepper + password
+            if pbkdf2_ctypes.pbkdf2_bin(data=pwd, salt=salt, iterations=iterations) == digested_password:
                 # Bcrypt have now confirmed that the password was correct!
                 return True
         # None of the peppers made the password correct, password incorrect!
@@ -292,7 +303,12 @@ class AuthHandler(object):
                 return self.auth_error_callback()
             # Get the user from data storage
             user = Login.query.filter_by(id=uuid.uuid5(uuid.NAMESPACE_OID, username)).first()
-            if not user or not user.verify_password(password) or not user.active:
+            if not user or not user.active:
+                # -- OWASP: Use a cryptographically strong credential-specific salt
+                # Make time-based attacks on a population intractable
+                time.sleep(current_app.config['UNKNOWN_USER_TIMEOUT'])
+                return self.auth_error_callback()
+            elif not user.verify_password(password):
                 # Either the user was not found, the password was incorrect or the user is inactive
                 return self.auth_error_callback()
             # Success!

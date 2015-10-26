@@ -14,7 +14,7 @@ class AuthTestCase(unittest.TestCase):
     def setUp(self):
         self.app = create_app(environment="Testing")
         self.client = self.app.test_client()
-        self.client.get('blabla')
+        self.client.get('blabla', headers={'Accept': 'application/json'})
 
     def tearDown(self):
         self.app = None
@@ -42,13 +42,15 @@ class AuthTestCase(unittest.TestCase):
         return self.client.post('/api/auth', data={
             'username': email,
             'password': password
-        })
+        }, headers={'Accept': 'application/json'})
 
     def _get_resource(self, token):
-        return self.client.get('/api/auth?token=' + token)
+        return self.client.get('/api/auth?token=' + token, headers={'Accept': 'application/json'})
 
     def _put_resource(self, data):
-        return self.client.put('/api/auth', data=data)
+        data = json.dumps(data).encode('utf8')
+        return self.client.put('/api/auth', data=data, headers={'Accept': 'application/json',
+                                                                'Content-Type': 'application/json; charset=utf-8'})
 
     def test_happy_login(self):
         with self.app.app_context():

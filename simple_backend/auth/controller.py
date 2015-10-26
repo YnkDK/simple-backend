@@ -8,7 +8,7 @@ import flask_restful.reqparse
 from simple_backend.auth.constants import MARSHAL_GET, MARSHAL_POST
 from simple_backend.auth.models import auth_handler
 from simple_backend.models import db, Session
-from simple_backend.util import roles_accepted, tokenify_output
+from simple_backend.util import roles_accepted, tokenify_output, parse_request_args
 
 __author__ = 'mys'
 
@@ -54,29 +54,19 @@ class Auth(flask_restful.Resource):
     def put(self):
         # TODO: Admin should be able to change other users
         # TODO: Admin should be able to change roles for other users
-        args = self.put_reqparse().parse_args()
+        args = parse_request_args([
+            {
+                'name': 'new_password',
+                'type': str,
+                'help': 'The new password to be set',
+                'trim': True,
+                'required': True
+            }
+        ])
         flask.g.session.login.set_password(args['new_password'])
         return {
             'id': flask.g.login.get_id_unicode(),
         }
-
-    @staticmethod
-    def put_reqparse():
-        """
-        Prepares the request parser for the put method
-
-        :return: The request parser
-        :rtype flask_restful.reqparse.RequestParser
-        """
-        parser = flask_restful.reqparse.RequestParser()
-        parser.add_argument(
-            name='new_password',
-            type=str,
-            help='The new password to be set',
-            trim=True,
-            required=True
-        )
-        return parser
 
 
 api.add_resource(Auth, '/auth')

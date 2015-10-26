@@ -8,7 +8,6 @@ from flask import Flask
 from flask.ext.restful import fields
 from flask.ext.security import Security
 from flask.ext.login import LoginManager
-
 from werkzeug.exceptions import HTTPException
 
 from simple_backend.models import db
