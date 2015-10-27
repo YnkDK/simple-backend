@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # Import generic python stuff
 from functools import wraps
+import hashlib
 import os
 import random
 from datetime import datetime
@@ -65,15 +66,23 @@ class Login(db.Model, flask_security.UserMixin):
         :param password: The plain-text password (must be of type str, not unicode!)
         :type password str
         """
+        from simple_backend.auth.constants import PEPPERS
         iterations = current_app.config.get('PBKDF2_ITERATIONS', 2000)
 
-        salt = os.urandom(8)
+        salt = os.urandom(16)
+        # TODO: Support other algorithms than pbkdf2 and other than pbkdf2_sha512
         digest = pbkdf2_ctypes.pbkdf2_bin(
-            data=os.urandom(1) + password + current_app.config['PROJECT_SALT'],
+            data=random.choice(PEPPERS) + password + current_app.config['PROJECT_SALT'],
             salt=salt,
-            iterations=iterations
+            iterations=iterations,
+            hashfunc=hashlib.sha512
         )
-        self.password = salt.encode('hex') + "$" + digest.encode('hex')
+        self.password = "${:s}${:d}${:s}${:s}".format(
+            'pbkdf2_sha512',
+            iterations,
+            salt.encode('hex'),
+            digest.encode('hex')
+        )
 
     def get_id_unicode(self):
         """
@@ -96,20 +105,24 @@ class Login(db.Model, flask_security.UserMixin):
         """
         from auth.constants import PEPPERS
         # Get number of iterations
-        iterations = current_app.config.get('PBKDF2_ITERATIONS', 2000)
         # Get current salt and digest
-        salt, digested_password = self.password.split("$")
+        algorithm, iterations, salt, digest = self.password.split("$")[1:]
         salt = salt.decode('hex')
-        digested_password = digested_password.decode('hex')
+        digest = digest.decode('hex')
+        iterations = int(iterations)
+        if algorithm.startswith('pbkdf2'):
+            algorithm, sha = algorithm.split("_")
+            hash_func = getattr(hashlib, sha, 'sha512')
+        else:
+            raise ValueError("Unknown hash func")
         # Append the project salt to the end of the given user password
         password = password + current_app.config['PROJECT_SALT']
-        # Prepare the peppers [1..255]. NB: \x00 is not allowed in bcrypt
         # Shuffle the peppers to be faster on average
         random.shuffle(PEPPERS)
         for pepper in PEPPERS:
             # The password is now: pepper + password + project salt
             pwd = pepper + password
-            if pbkdf2_ctypes.pbkdf2_bin(data=pwd, salt=salt, iterations=iterations) == digested_password:
+            if pbkdf2_ctypes.pbkdf2_bin(data=pwd, salt=salt, iterations=iterations, hashfunc=hash_func) == digest:
                 # Bcrypt have now confirmed that the password was correct!
                 return True
         # None of the peppers made the password correct, password incorrect!
@@ -168,20 +181,6 @@ class Login(db.Model, flask_security.UserMixin):
         :rtype uuid.UUID
         """
         return uuid.uuid5(uuid.NAMESPACE_OID, login)
-
-    @staticmethod
-    def get_random_pepper():
-        """
-        Generates a random byte between 1 and 255 (both included) using the
-        os.urandom method
-
-        :return: A single byte
-        :rtype str
-        """
-        while True:
-            pepper = os.urandom(1)
-            if pepper != '\x00':
-                return pepper
 
 
 class Role(db.Model, flask_security.RoleMixin):
@@ -306,7 +305,9 @@ class AuthHandler(object):
             if not user or not user.active:
                 # -- OWASP: Use a cryptographically strong credential-specific salt
                 # Make time-based attacks on a population intractable
-                time.sleep(current_app.config['UNKNOWN_USER_TIMEOUT'])
+                timeout = current_app.config['UNKNOWN_USER_TIMEOUT']
+                # Add timeout +/- 10 percent
+                time.sleep(timeout + random.uniform(-0.1, 0.1) * timeout)
                 return self.auth_error_callback()
             elif not user.verify_password(password):
                 # Either the user was not found, the password was incorrect or the user is inactive
